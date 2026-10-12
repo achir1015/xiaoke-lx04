@@ -1,0 +1,17 @@
+# 機密 / 本機設定（絕對不要上傳）
+src/com/achir/xiaoke/Config.java
+local.properties
+*.jks
+*.keystore
+
+# 產生物（可由原始碼重建）
+build/
+assets/
+__pycache__/
+*.pyc
+
+# 備份與雜項
+backup/
+*.apk
+.DS_Store
+Thumbs.db

@@ -1,0 +1,40 @@
+package com.achir.xiaoke;
+
+// 複製成 Config.java（同資料夾）後填入金鑰；Config.java 已列入 .gitignore
+public final class Config {
+    public static final String OPENAI_API_KEY = "sk-...";
+
+    public static final String STT_MODEL  = "gpt-4o-mini-transcribe";   // 或 "whisper-1"
+    public static final String CHAT_MODEL = "gpt-4o-mini";
+    public static final String TTS_MODEL  = "gpt-4o-mini-tts";          // 或 "tts-1"
+    public static final String TTS_VOICE  = "nova";
+    public static final String TTS_INSTRUCTIONS = "用可愛、活潑、溫暖的台灣口音中文說話，語氣像貼心的小朋友，語速稍快。";
+
+    public static final String ROBOT_NAME = "小柯";
+    public static final int MAX_HISTORY_MSGS = 10;
+    public static final int CHAT_MAX_TOKENS = 300;
+
+    public static final boolean ENABLE_WEB_SEARCH = true;
+    public static final String SEARCH_CITY = "Taipei";
+    public static final String SEARCH_CITY_ZH = "台北";
+
+    // 語音偵測：直接說話就開始聆聽（false = 只能點螢幕說話）
+    public static final boolean VOICE_ACTIVATION = true;
+    public static final int VAD_MIN_RMS = 250;        // 環境吵、常誤觸就調高
+    public static final double VAD_RATIO = 3.0;       // 音量需高於背景噪音幾倍才觸發
+    public static final int VAD_SILENCE_MS = 900;     // 停頓多久視為說完
+    public static final int VAD_MIN_SPEECH_MS = 400;  // 太短視為雜音
+    public static final int MAX_RECORD_SEC = 15;
+    public static final int SLEEPY_AFTER_SEC = 90;
+
+    // 病房助理工作站（工具清單在 assets/tools.json；改 portal_items.json 後跑 build_portal_assets.py）
+    public static final String PORTAL_NAME = "病房助理工作站";
+    public static final int WEB_PORT = 8080;          // 內建工具啟動頁：http://裝置IP:8080
+    public static final int PORTAL_TIMEOUT_SEC = 120; // 工作站畫面多久沒操作自動回首頁
+
+    // Stream Deck：電腦上的 Macro Deck 2 網頁用戶端（空字串 = 自動掃描同網段，例 "http://192.168.1.20:8191"）
+    public static final String MACRO_DECK_URL = "";
+    public static final int MACRO_DECK_PORT = 8191;
+
+    private Config() {}
+}
