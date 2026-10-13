@@ -15,3 +15,10 @@ backup/
 *.apk
 .DS_Store
 Thumbs.db
+
+# iOS
+ios/XiaoKe/Config.swift
+ios/XiaoKe.xcodeproj/
+ios/XiaoKe/Info.plist
+ios/build/
+xcuserdata/

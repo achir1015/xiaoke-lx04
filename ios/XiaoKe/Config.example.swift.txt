@@ -1,0 +1,38 @@
+import Foundation
+
+// 複製成 Config.swift（同資料夾）後填入金鑰；Config.swift 已列入 .gitignore
+enum Config {
+    static let OPENAI_API_KEY = "sk-..."
+
+    static let STT_MODEL  = "gpt-4o-mini-transcribe"   // 或 "whisper-1"
+    static let CHAT_MODEL = "gpt-4o-mini"
+    static let TTS_MODEL  = "gpt-4o-mini-tts"          // 或 "tts-1"
+    static let TTS_VOICE  = "nova"
+    static let TTS_INSTRUCTIONS = "用可愛、活潑、溫暖的台灣口音中文說話，語氣像貼心的小朋友，語速稍快。"
+
+    static let ROBOT_NAME = "小柯"
+    static let MAX_HISTORY_MSGS = 10
+    static let CHAT_MAX_TOKENS = 300
+
+    static let ENABLE_WEB_SEARCH = true
+    static let SEARCH_CITY = "Taipei"
+    static let SEARCH_CITY_ZH = "台北"
+
+    // 語音偵測：直接說話就開始聆聽（false = 只能點螢幕說話）
+    static let VOICE_ACTIVATION = true
+    static let VAD_MIN_RMS = 250.0        // 環境吵、常誤觸就調高
+    static let VAD_RATIO = 3.0            // 音量需高於背景噪音幾倍才觸發
+    static let VAD_SILENCE_MS = 900       // 停頓多久視為說完
+    static let VAD_MIN_SPEECH_MS = 400    // 太短視為雜音
+    static let MAX_RECORD_SEC = 15
+    static let SLEEPY_AFTER_SEC = 90
+
+    // 病房助理工作站（工具清單在 assets/tools.json；改 portal_items.json 後跑 build_portal_assets.py）
+    static let PORTAL_NAME = "病房助理工作站"
+    static let WEB_PORT = 8080            // 內建工具啟動頁：http://iPhone的IP:8080（App 在前景時才有）
+    static let PORTAL_TIMEOUT_SEC = 120   // 工作站畫面多久沒操作自動回首頁
+
+    // Stream Deck：電腦上的 Macro Deck 2 網頁用戶端（空字串 = 自動掃描同網段，例 "http://192.168.1.20:8191"）
+    static let MACRO_DECK_URL = ""
+    static let MACRO_DECK_PORT = 8191
+}
