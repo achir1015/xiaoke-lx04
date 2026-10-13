@@ -24,6 +24,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.LinearLayout;
+import android.widget.MediaController;
+import android.widget.TextView;
+import android.widget.VideoView;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.Toast;
@@ -46,6 +50,12 @@ public class MainActivity extends Activity {
     private FaceView face;
     private final OpenAI ai = new OpenAI();
     private final Portal portal = new Portal();
+    private final Music music = new Music();
+    private volatile boolean interrupted;   // 這一輪被點螢幕打斷
+    private FrameLayout mvLayer;
+    private VideoView mvView;
+    private Button mvPause;
+    private TextView mvTitle;
     private WebServer web;
     private WebView wv;
     private Button webBar;
@@ -73,10 +83,12 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.addView(face, new FrameLayout.LayoutParams(-1, -1));
         buildWebUi(root);
+        buildMvUi(root);
         setContentView(root);
         hideSystemUi();
 
         portal.load(this);
+        music.load(this);
         face.setPortal(portal);
         face.setToolListener((url, name) -> openTool(url, "‹ 返回工作站"));   // 點工具 → 直接在螢幕上開網頁
         face.setDeckListener(this::openDeck);                   // Stream Deck（Macro Deck 網頁用戶端）
@@ -134,6 +146,7 @@ public class MainActivity extends Activity {
 
     private void openTool(String url, String back) {
         ai.stopSpeaking();
+        music.stop();
         webShown = true;
         webBar.setText(back);
         wv.setVisibility(View.VISIBLE);
@@ -211,6 +224,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (mvOpen()) { closeMV(); return; }
         if (webOpen()) { if (wv.canGoBack()) wv.goBack(); else closeWeb(); return; }
         if (face.isPortalOpen()) { face.closePortal(); return; }
         super.onBackPressed();
@@ -261,6 +275,8 @@ public class MainActivity extends Activity {
         super.onPause();
         running = false;
         ai.stopSpeaking();
+        music.stop();
+        closeMV();
         ui.removeCallbacks(chipTick);
     }
 
@@ -283,7 +299,7 @@ public class MainActivity extends Activity {
             lastActive = System.currentTimeMillis();
             if (face.handleTouch(e.getX(), e.getY())) return true;        // 工作站選單吃掉這一下
             FaceView.State s = face.getState();
-            if (s == FaceView.State.SPEAKING) ai.stopSpeaking();          // 打斷
+            if (s == FaceView.State.SPEAKING) { interrupted = true; ai.stopSpeaking(); music.stop(); }   // 打斷（說話或唱歌）
             else if (s != FaceView.State.THINKING) manualListen = true;   // 點一下開始聽
         }
         return false;   // 讓長按事件繼續
@@ -391,6 +407,7 @@ public class MainActivity extends Activity {
     }
 
     private void handleSpeech(byte[] pcm) {
+        interrupted = false;
         face.setState(FaceView.State.THINKING);
         face.setSubtitle("");
         String text = ai.transcribe(pcm);
@@ -405,6 +422,26 @@ public class MainActivity extends Activity {
             runOnUiThread(this::openDeck);
             return;
         }
+        Music.Request req = music.parse(text);              // 唱歌 / 點歌 / 看 MV / 問歌單 → 不經過 AI
+        if (req.kind == Music.PLAY) { sing(req.song != null ? req.song : music.random(false)); return; }
+        if (req.kind == Music.MV) {
+            Music.Song song = req.song != null ? req.song : music.random(true);
+            if (song.mp4.isEmpty()) {
+                say("〈" + song.name + "〉還沒有 MV，我先唱給你聽喔！", "shy");
+                sing(song);
+            } else {
+                say("好喔！來看〈" + song.name + "〉的 MV。", "happy");
+                if (!interrupted) runOnUiThread(() -> playMV(song));
+            }
+            return;
+        }
+        if (req.kind == Music.LIST) {
+            StringBuilder names = new StringBuilder();
+            for (int i = 0; i < Math.min(8, music.songs.size()); i++)
+                names.append(i > 0 ? "、" : "").append("〈").append(music.songs.get(i).name).append("〉");
+            say("我會唱 " + music.songs.size() + " 首吳玉柱先生的自創歌曲，像是" + names + "。想聽哪一首，說歌名就可以喔！", "happy");
+            return;
+        }
         String reply = ai.chat(text);
         if (reply.isEmpty()) {
             showError("連線失敗：" + ai.lastError);
@@ -414,6 +451,103 @@ public class MainActivity extends Activity {
         face.setSubtitle(reply);
         face.setState(FaceView.State.SPEAKING);
         if (!ai.speak(reply)) showError("語音播放失敗：" + ai.lastError);
+    }
+
+    /** 先用語音報歌名，再串流播放雲端的 mp3；播放中嘴巴會動，點螢幕可停止。 */
+    private void sing(Music.Song song) {
+        say("好喔！為你播放〈" + song.name + "〉。", "happy");
+        if (interrupted) return;                             // 報歌名時被點掉 → 不播
+        face.setSubtitle("♪ 正在播放〈" + song.name + "〉\n\n點一下螢幕可以停止");
+        boolean ok = music.play(song);
+        if (!ok && !interrupted) showError("歌曲播放失敗，請確認網路，或雲端檔案是否仍公開分享");
+    }
+
+    /** 說一段固定的話（不經過 AI）。 */
+    private void say(String text, String emotion) {
+        face.setEmotion(emotion);
+        face.setSubtitle(text);
+        face.setState(FaceView.State.SPEAKING);
+        if (!ai.speak(text)) showError("語音播放失敗：" + ai.lastError);
+    }
+
+    // ---------------- MV（全螢幕，Google 雲端 songs_mp4 串流）----------------
+    private void buildMvUi(FrameLayout root) {
+        mvLayer = new FrameLayout(this);
+        mvLayer.setBackgroundColor(Color.BLACK);
+        mvView = new VideoView(this);
+        FrameLayout.LayoutParams vp = new FrameLayout.LayoutParams(-1, -1);
+        vp.gravity = Gravity.CENTER;
+        mvLayer.addView(mvView, vp);
+        MediaController mc = new MediaController(this);           // 點影片 → 進度條
+        mc.setAnchorView(mvView);
+        mvView.setMediaController(mc);
+        mvView.setOnCompletionListener(mp -> closeMV());
+        mvView.setOnErrorListener((mp, what, extra) -> {
+            closeMV();
+            face.setStatus("MV 播放失敗，請確認網路，或雲端檔案是否仍公開分享");
+            return true;
+        });
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        mvPause = mvButton("⏸ 暫停");
+        mvPause.setOnClickListener(v -> toggleMVPause());
+        Button stop = mvButton("⏹ 停止");
+        stop.setOnClickListener(v -> closeMV());
+        mvTitle = new TextView(this);
+        mvTitle.setTextColor(0xD9FFFFFF);
+        mvTitle.setTextSize(15);
+        mvTitle.setShadowLayer(4, 0, 0, Color.BLACK);
+        bar.addView(mvPause);
+        bar.addView(stop);
+        bar.addView(mvTitle);
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2);
+        bp.gravity = Gravity.TOP | Gravity.START;
+        bp.leftMargin = 16; bp.topMargin = 16;
+        mvLayer.addView(bar, bp);
+        mvLayer.setVisibility(View.GONE);
+        root.addView(mvLayer, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private Button mvButton(String label) {
+        Button b = new Button(this);
+        b.setAllCaps(false);
+        b.setText(label);
+        b.setTextSize(17);
+        b.setTextColor(Color.WHITE);
+        b.setBackgroundColor(0x99000000);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.rightMargin = 12;
+        b.setLayoutParams(lp);
+        return b;
+    }
+
+    private void playMV(Music.Song song) {
+        ai.stopSpeaking();
+        music.stop();
+        webShown = true;                                      // MV 聲音不要觸發語音偵測
+        mvTitle.setText(song.name);
+        mvPause.setText("⏸ 暫停");
+        mvLayer.setVisibility(View.VISIBLE);
+        mvLayer.bringToFront();
+        mvView.setVideoURI(android.net.Uri.parse(Music.url(song.mp4)));
+        mvView.start();
+    }
+
+    private void toggleMVPause() {
+        if (mvView.isPlaying()) { mvView.pause(); mvPause.setText("▶︎ 繼續"); }
+        else { mvView.start(); mvPause.setText("⏸ 暫停"); }
+    }
+
+    private boolean mvOpen() { return mvLayer != null && mvLayer.getVisibility() == View.VISIBLE; }
+
+    private void closeMV() {
+        if (!mvOpen()) return;
+        mvView.stopPlayback();
+        mvLayer.setVisibility(View.GONE);
+        webShown = webOpen();
+        hideSystemUi();
     }
 
     private void showError(String msg) {

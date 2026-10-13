@@ -119,18 +119,13 @@ final class OpenAI {
         stopSpeaking = false;
         AudioTrack track = null;
         try {
-            JSONObject doc = new JSONObject()
-                    .put("model", Config.TTS_MODEL)
-                    .put("voice", Config.TTS_VOICE)
-                    .put("input", text)
-                    .put("response_format", "pcm")
-                    .put("instructions", Config.TTS_INSTRUCTIONS);
-            HttpURLConnection c = open("/v1/audio/speech", 30000);
-            c.setRequestProperty("Content-Type", "application/json");
-            byte[] req = doc.toString().getBytes("UTF-8");
-            c.setFixedLengthStreamingMode(req.length);
-            try (OutputStream o = c.getOutputStream()) { o.write(req); }
+            HttpURLConnection c = speechRequest(text, Config.TTS_MODEL, Config.TTS_INSTRUCTIONS);
             int code = c.getResponseCode();
+            if ((code == 403 || code == 404) && !"tts-1".equals(Config.TTS_MODEL)) {   // 專案權限還沒開 → 改用 tts-1
+                c.disconnect();
+                c = speechRequest(text, "tts-1", null);
+                code = c.getResponseCode();
+            }
             if (code != 200) {
                 lastError = "TTS " + code + " " + snippet(c.getErrorStream());
                 return false;
@@ -185,6 +180,21 @@ final class OpenAI {
     }
 
     void stopSpeaking() { stopSpeaking = true; }
+
+    private static HttpURLConnection speechRequest(String text, String model, String instructions) throws Exception {
+        JSONObject doc = new JSONObject()
+                .put("model", model)
+                .put("voice", Config.TTS_VOICE)
+                .put("input", text)
+                .put("response_format", "pcm");
+        if (instructions != null) doc.put("instructions", instructions);
+        HttpURLConnection c = open("/v1/audio/speech", 30000);
+        c.setRequestProperty("Content-Type", "application/json");
+        byte[] req = doc.toString().getBytes("UTF-8");
+        c.setFixedLengthStreamingMode(req.length);
+        try (OutputStream o = c.getOutputStream()) { o.write(req); }
+        return c;
+    }
 
     // ---------- 內部 ----------
     private String systemPrompt() {

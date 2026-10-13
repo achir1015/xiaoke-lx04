@@ -47,6 +47,11 @@ LX04 是 MediaTek MT8167、Android 8.1、A/B 分區。原廠系統沒有 ADB、�
    ```
    （`-g` 會授予執行權限；麥克風／鏡頭／定位也可用 `adb shell pm grant` 補。）
 
+## 唱歌與 MV（Android / iPhone 共用）
+- 歌單在 `songs.json`（Google 雲端 songs_mp3 的 mp3、songs_mp4 的 MV 檔案 ID，檔案需「知道連結的任何人都能檢視」）；`build_portal_assets.py` 會複製到 `assets/`。
+- 說「唱首歌／來首歌／換一首」→ 隨機播；說歌名（前 4 個字即可）→ 播那首；「你會唱哪些歌」→ 列歌單；點螢幕停止。
+- 說「看 MV」或「看〈歌名〉的 MV」→ 全螢幕播放，左上角「⏸ 暫停／▶︎ 繼續」「⏹ 停止」，點影片出現進度條。
+
 ## 修改工具清單
 1. 編輯 `portal_items.json`（17 筆：`id 0` 是工作站入口，其餘是各工具；欄位 `name`／`short`／`cat`／`url`）。
 2. `python build_portal_assets.py` 重新產生資產。
