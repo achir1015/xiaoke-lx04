@@ -1,7 +1,7 @@
 # 小柯 for 小米小愛觸屏音箱 LX04（Android 版）
-
+<img width="1635" height="860" alt="{2E773170-F855-4F5C-99F5-F69B49B40D3A}" src="https://github.com/user-attachments/assets/46ceb26a-314c-487e-9b59-aae1c8f06f84" />
+https://github.com/user-attachments/assets/37f89075-3862-4649-9716-feb4e457210e
 把小米小愛觸屏音箱 LX04（或任何 Android 7.0 以上、橫向 800×480 的裝置）變成 OpenAI 語音聊天機器人「小柯」，並內建「病房助理工作站」。由 ESP32 版 XiaoKe_P4 移植。
-
 GitHub：<https://github.com/achir1015/xiaoke-lx04>
 
 ## 功能
@@ -58,6 +58,8 @@ LX04 是 MediaTek MT8167、Android 8.1、A/B 分區。原廠系統沒有 ADB、�
 3. `python build.py` 重編、重裝。
 
 ## 跨機器（Windows 筆電 ⇄ MacBook Pro）
+<img width="1873" height="920" alt="{0A2CB7F5-3279-4604-985F-E52C4AD08E66}" src="https://github.com/user-attachments/assets/364a0233-c2fa-4a92-8159-9e15b7f47792" />
+https://github.com/user-attachments/assets/21ad316b-36f8-4d54-b4e1-70689a67fe65
 同一個 Claude 帳號只是讓你在兩台都能登入；**程式碼、工具鏈、Config.java 不會自動跨機同步**，要靠 git：
 ```bash
 git clone https://github.com/achir1015/xiaoke-lx04.git
