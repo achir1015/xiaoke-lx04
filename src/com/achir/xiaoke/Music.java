@@ -55,7 +55,7 @@ final class Music {
     Request parse(String text) {
         if (songs.isEmpty() || text == null) return new Request(NONE, null);
         String t = text.replace(" ", "");
-        boolean wantsMV = containsAny(t, "MV", "mv", "Mv", "影片", "音樂錄影帶", "看歌", "看一首", "看首");
+        boolean wantsMV = containsAny(t, "MV", "mv", "Mv", "ＭＶ", "影片", "音樂錄影帶");
         Song s = match(t);
         if (s != null) return new Request(wantsMV ? MV : PLAY, s);
         if (wantsMV) return new Request(MV, null);
@@ -72,15 +72,35 @@ final class Music {
 
     private static String clean(String s) { return s.replaceAll("[，。、：:,. 　]", ""); }
 
-    /** 歌名比對：去掉標點後，句子裡包含歌名（或歌名前 4 個字）就算點到。 */
+    /**
+     * 歌名比對（容忍語音辨識錯字，例如「花間謠」聽成「花間搖」）：
+     * 句子與歌名的「最長連續相同字數」≥ 2，且佔歌名 ≥ 60%（或連續 ≥ 4 字）才算點到；多首都像時取比例最高的。
+     */
     private Song match(String t) {
         String ct = clean(t);
-        for (Song s : songs) if (ct.contains(clean(s.name))) return s;
+        Song best = null;
+        double bestScore = 0;
         for (Song s : songs) {
             String n = clean(s.name);
-            if (n.length() >= 4 && ct.contains(n.substring(0, 4))) return s;
+            if (n.isEmpty()) continue;
+            if (ct.contains(n)) return s;
+            int l = longestCommon(ct, n);
+            double score = (double) l / n.length();
+            if (l >= 2 && (score >= 0.6 || l >= 4) && score > bestScore) { best = s; bestScore = score; }
         }
-        return null;
+        return best;
+    }
+
+    private static int longestCommon(String a, String b) {
+        int best = 0;
+        int[] prev = new int[b.length() + 1];
+        for (int i = 1; i <= a.length(); i++) {
+            int[] cur = new int[b.length() + 1];
+            for (int j = 1; j <= b.length(); j++)
+                if (a.charAt(i - 1) == b.charAt(j - 1)) { cur[j] = prev[j - 1] + 1; best = Math.max(best, cur[j]); }
+            prev = cur;
+        }
+        return best;
     }
 
     Song random(boolean withMV) {

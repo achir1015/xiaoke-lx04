@@ -29,7 +29,7 @@ final class Music {
     func parse(_ text: String) -> Request {
         if songs.isEmpty { return .none }
         let t = text.replacingOccurrences(of: " ", with: "")
-        let wantsMV = ["MV", "mv", "Mv", "影片", "音樂錄影帶", "看歌", "看一首", "看首"].contains(where: t.contains)
+        let wantsMV = ["MV", "mv", "Mv", "ＭＶ", "影片", "音樂錄影帶"].contains(where: t.contains)
         if let s = match(t) { return wantsMV ? .mv(s) : .play(s) }
         if wantsMV { return .mv(nil) }
         if ["哪些歌", "什麼歌", "歌單", "幾首歌", "會唱什麼"].contains(where: t.contains) { return .list }
@@ -39,12 +39,36 @@ final class Music {
         return .none
     }
 
-    /// 歌名比對：去掉標點後，句子裡包含歌名（或歌名的前 4 個字）就算點到。
+    /// 歌名比對（容忍語音辨識錯字，例如「花間謠」聽成「花間搖」）：
+    /// 句子與歌名的「最長連續相同字數」≥ 2，且佔歌名 ≥ 60%（或連續 ≥ 4 字）才算點到；多首都像時取比例最高的。
     private func match(_ t: String) -> Song? {
-        let clean = { (s: String) in s.filter { !"，。、：:,. 　".contains($0) } }
+        let clean = { (s: String) in Array(s.filter { !"，。、：:,. 　".contains($0) }) }
         let ct = clean(t)
-        return songs.first { ct.contains(clean($0.name)) }
-            ?? songs.first { let n = clean($0.name); return n.count >= 4 && ct.contains(String(n.prefix(4))) }
+        var best: Song?
+        var bestScore = 0.0
+        for s in songs {
+            let n = clean(s.name)
+            if n.isEmpty { continue }
+            let l = Music.longestCommon(ct, n)
+            if l == n.count { return s }
+            let score = Double(l) / Double(n.count)
+            if l >= 2 && (score >= 0.6 || l >= 4) && score > bestScore { best = s; bestScore = score }
+        }
+        return best
+    }
+
+    private static func longestCommon(_ a: [Character], _ b: [Character]) -> Int {
+        var best = 0
+        var prev = [Int](repeating: 0, count: b.count + 1)
+        for i in 1...max(1, a.count) where i <= a.count {
+            var cur = [Int](repeating: 0, count: b.count + 1)
+            for j in 1...b.count where a[i - 1] == b[j - 1] {
+                cur[j] = prev[j - 1] + 1
+                best = max(best, cur[j])
+            }
+            prev = cur
+        }
+        return best
     }
 
     /// MV 的串流網址（Google 雲端大檔案要加 confirm=t 跳過病毒掃描提示頁）。

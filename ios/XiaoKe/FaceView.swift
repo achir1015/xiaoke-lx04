@@ -186,12 +186,14 @@ final class FaceRenderer {
     }
 
     /// App 圖示：深藍漸層底 + 光暈 + 頭頂小心芽的笑臉小柯 + 雙手捧紅心（ios/make_icon.sh 輸出 1024x1024 PNG）。
-    func drawIcon(_ context: GraphicsContext, size: CGSize) {
+    /// contentScale < 1：圖案往中心縮小、背景照樣鋪滿（Android 自適應圖示會裁掉外圈，要留安全區）。
+    func drawIcon(_ context: GraphicsContext, size: CGSize, contentScale: CGFloat = 1) {
         var c = context
         let full = Path(CGRect(origin: .zero, size: size))
         c.fill(full, with: .linearGradient(Gradient(colors: [col(0xFF12345A), col(0xFF040A14)]),
                                            startPoint: .zero, endPoint: CGPoint(x: 0, y: size.height)))
-        c.scaleBy(x: size.width / 300, y: size.height / 300)
+        c.translateBy(x: size.width * (1 - contentScale) / 2, y: size.height * (1 - contentScale) / 2)
+        c.scaleBy(x: size.width * contentScale / 300, y: size.height * contentScale / 300)
         c.fill(Path(ellipseIn: CGRect(x: 10, y: 0, width: 280, height: 280)),
                with: .radialGradient(Gradient(colors: [col(0x6640E8FF), col(0x0040E8FF)]),
                                      center: CGPoint(x: 150, y: 130), startRadius: 0, endRadius: 140))
