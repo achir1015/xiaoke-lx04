@@ -13,11 +13,17 @@ final class AppModel: ObservableObject {
     @Published var webBarTitle = "‹ 返回工作站"
     @Published var webBarAlpha = 1.0
     @Published var toast: String?
+    @Published var mvPlayer: AVPlayer?                     // 正在播的 MV（全螢幕）
+    @Published var mvTitle = ""
+    @Published var mvPaused = false
+    private var mvObserver: NSObjectProtocol?
 
     private let ai = OpenAI()
     private let audio = AudioIO()
     private let listener = Listener()
     private let portal = Portal()
+    private let music = Music()
+    private var interrupted = false                        // 這一輪被點螢幕打斷
     private lazy var server = WebServer(portal: portal)
     private var chipTimer: Timer?
     private var deckBusy = false
@@ -27,6 +33,7 @@ final class AppModel: ObservableObject {
     init() {
         face.status = "嗨！我是\(Config.ROBOT_NAME)，有什麼想聊的嗎？"
         portal.load()
+        music.load()
         face.portal = portal
         face.onOpenTool = { [weak self] t in self?.openTool(t.url, back: "‹ 返回工作站") }   // 點工具 → 直接在螢幕上開網頁
         face.onDeck = { [weak self] in self?.openDeck() }                                   // Stream Deck（Macro Deck 網頁用戶端）
@@ -75,6 +82,8 @@ final class AppModel: ObservableObject {
             startAudio()
         case .background:
             ai.stopSpeaking()
+            music.stop()
+            closeMV()
             audio.stop()
             listener.reset()
             server.stop()
@@ -114,7 +123,7 @@ final class AppModel: ObservableObject {
         listener.touched()
         if face.handleTouch(q.x, q.y) { return }          // 工作站選單吃掉這一下
         switch face.state {
-        case .speaking: ai.stopSpeaking()                  // 打斷
+        case .speaking: interrupted = true; ai.stopSpeaking(); music.stop()    // 打斷（說話或唱歌）
         case .thinking, .listening: break
         default: listener.requestListen()                  // 點一下開始聽
         }
@@ -137,6 +146,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - 對話
     private func handleSpeech(_ pcm: Data) async {
+        interrupted = false
         face.state = .thinking
         face.subtitle = ""
         face.userText = ""
@@ -153,6 +163,27 @@ final class AppModel: ObservableObject {
             openDeck()
             return
         }
+        switch music.parse(text) {                          // 唱歌 / 點歌 / 問歌單 → 不經過 AI
+        case .play(let pick):
+            await sing(pick ?? music.random())
+            return
+        case .mv(let pick):
+            let song = pick ?? music.random(withMV: true)
+            if Music.mvURL(song) == nil {
+                await say("〈\(song.name)〉還沒有 MV，我先唱給你聽喔！", emotion: "shy")
+                await sing(song)
+            } else {
+                await say("好喔！來看〈\(song.name)〉的 MV。", emotion: "happy")
+                if !interrupted { playMV(song) }
+            }
+            return
+        case .list:
+            let names = music.songs.prefix(8).map { "〈\($0.name)〉" }.joined(separator: "、")
+            await say("我會唱 \(music.songs.count) 首吳玉柱先生的自創歌曲，像是\(names)。想聽哪一首，說歌名就可以喔！", emotion: "happy")
+            return
+        case .none:
+            break
+        }
         let reply = await ai.chat(text)
         Log.w("chat=\(reply.prefix(60)) err=\(ai.lastError)")
         if reply.isEmpty {
@@ -167,6 +198,57 @@ final class AppModel: ObservableObject {
         if !ok { await showError("語音播放失敗：" + ai.lastError) }
     }
 
+    /// 先用語音報歌名，再串流播放雲端的 mp3；播放中嘴巴會動，點螢幕可停止。
+    private func sing(_ song: Music.Song) async {
+        await say("好喔！為你播放〈\(song.name)〉。", emotion: "happy")
+        if interrupted { return }                           // 報歌名時被點掉 → 不播
+        face.subtitle = "♪ 正在播放〈\(song.name)〉\n\n點一下螢幕可以停止"
+        let ok = await music.play(song)
+        Log.w("song done ok=\(ok)")
+        if !ok && !interrupted { await showError("歌曲播放失敗，請確認網路，或雲端檔案是否仍公開分享") }
+    }
+
+    /// 全螢幕播放 MV（Google 雲端 songs_mp4 的 mp4，串流）。播完自動關閉。
+    func playMV(_ song: Music.Song) {
+        guard let url = Music.mvURL(song) else { return }
+        closeMV()
+        ai.stopSpeaking()
+        music.stop()
+        listener.setWebShown(true)                         // MV 聲音不要觸發語音偵測
+        let item = AVPlayerItem(url: url)
+        let p = AVPlayer(playerItem: item)
+        mvObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.closeMV() }
+        }
+        mvTitle = song.name
+        mvPaused = false
+        mvPlayer = p
+        p.play()
+        Log.w("mv play \(song.name)")
+    }
+
+    func toggleMVPause() {
+        guard let p = mvPlayer else { return }
+        if mvPaused { p.play() } else { p.pause() }
+        mvPaused.toggle()
+    }
+
+    func closeMV() {
+        mvPlayer?.pause()
+        if mvPlayer != nil { listener.setWebShown(webShown) }
+        mvPlayer = nil
+        if let o = mvObserver { NotificationCenter.default.removeObserver(o) }
+        mvObserver = nil
+    }
+
+    /// 說一段固定的話（不經過 AI）。
+    private func say(_ text: String, emotion: String) async {
+        face.setEmotion(emotion)
+        face.subtitle = text
+        face.state = .speaking
+        if !(await ai.speak(text, audio: audio)) { await showError("語音播放失敗：" + ai.lastError) }
+    }
+
     private func showError(_ msg: String) async {
         face.state = .error
         face.setEmotion("sad")
@@ -179,6 +261,7 @@ final class AppModel: ObservableObject {
     private func openTool(_ url: String, back: String) {
         guard let u = URL(string: url) else { return }
         ai.stopSpeaking()
+        music.stop()
         webBarTitle = back
         webBarAlpha = 1
         webShown = true

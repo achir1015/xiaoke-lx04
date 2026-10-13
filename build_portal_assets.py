@@ -38,6 +38,13 @@ def main():
 
     json.dump(out, open(os.path.join(ASSETS, "tools.json"), "w", encoding="utf-8"),
               ensure_ascii=False, separators=(",", ":"))
+    # 自創歌曲清單（Google 雲端公開分享的 mp3，App 串流播放）
+    songs_src = os.path.join(ROOT, "songs.json")
+    if os.path.exists(songs_src):
+        songs = json.load(open(songs_src, encoding="utf-8"))
+        json.dump(songs, open(os.path.join(ASSETS, "songs.json"), "w", encoding="utf-8"),
+                  ensure_ascii=False, separators=(",", ":"))
+        print("歌曲 %d 首" % len(songs))
     cats = list(dict.fromkeys(x["cat"] for x in out))
     print("工具 %d 個、類別 %d 種：%s" % (len(out), len(cats), " / ".join(cats)))
     print("QR 碼輸出到", QR_DIR)

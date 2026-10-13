@@ -49,6 +49,13 @@ xcrun devicectl device install app --device '吳玉柱 的 iPhone' \
 - 左下網址 `http://iPhone的IP:8080`：同 Wi-Fi 的電腦／手機開它就能看到全部工具（**App 要在前景**，iOS 不允許背景伺服器）。
 - 螢幕常亮；切到背景會停止聆聽，回到前景自動恢復。
 
+## 唱歌與 MV
+- 歌單在 repo 根目錄的 `songs.json`（每首：`name`、`mp3`＝Google 雲端 songs_mp3 的檔案 ID、`mp4`＝songs_mp4 的 MV 檔案 ID）。
+  檔案要設成「知道連結的任何人都能檢視」。改完跑 `python3 build_portal_assets.py` 再重新編譯。
+- 說「唱首歌／來首歌／換一首」→ 隨機播；說歌名（前 4 個字即可）→ 播那首；「你會唱哪些歌」→ 列歌單；點螢幕停止。
+- 說「看 MV」或「看〈歌名〉的 MV」→ 全螢幕播放，左上角有「⏸ 暫停／▶︎ 繼續」「⏹ 停止」。
+- 雲端 songs_mv 的 `.xkv` 是 ESP32 版自訂格式（JPEG 幀＋MP3），iPhone 不使用。
+
 ## 改工具清單
 改 `portal_items.json` → `python3 build_portal_assets.py` → Xcode 重新 Run（Android 與 iOS 共用）。
 

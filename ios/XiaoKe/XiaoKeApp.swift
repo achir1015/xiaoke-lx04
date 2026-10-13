@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 
 @main
@@ -41,6 +42,22 @@ struct ContentView: View {
                 .padding(8)
             }
 
+            if let p = app.mvPlayer {
+                ZStack(alignment: .topLeading) {
+                    Color.black.ignoresSafeArea()
+                    VideoPlayer(player: p).ignoresSafeArea()
+                    HStack(spacing: 10) {
+                        mvButton(app.mvPaused ? "▶︎ 繼續" : "⏸ 暫停") { app.toggleMVPause() }
+                        mvButton("⏹ 停止") { app.closeMV() }
+                        Text(app.mvTitle)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(radius: 3)
+                    }
+                    .padding(8)
+                }
+            }
+
             if let t = app.toast {
                 Text(t)
                     .font(.system(size: 15))
@@ -58,4 +75,14 @@ struct ContentView: View {
         .onAppear { app.scene(phase) }
         .onChange(of: phase) { _, p in app.scene(p) }
     }
+}
+
+/// MV 畫面左上角的大按鈕。
+private func mvButton(_ title: String, _ action: @escaping () -> Void) -> some View {
+    Button(title, action: action)
+        .font(.system(size: 18, weight: .semibold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.25)))
 }
